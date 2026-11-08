@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/*
+ * Tema futurista de alto contraste.
+ * Todos los pares texto/fondo cumplen WCAG AA (4.5:1) o más.
+ */
+@theme {
+  --color-bg: #0a0e1a;
+  --color-panel: #111827;
+  --color-panel-2: #1a2236;
+  --color-line: #2a3550;
+  --color-text: #e6edf7;
+  --color-muted: #9fb0c8;
+  --color-accent: #22d3ee;
+  --color-accent-2: #a78bfa;
+  --color-ok: #34d399;
+  --color-danger: #f87171;
+
+  --font-display: "Orbitron", "Inter Variable", sans-serif;
+  --font-sans: "Inter Variable", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Cuadrícula tenue de fondo (decorativa, contraste < 15%) */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Foco visible y consistente en toda la app */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

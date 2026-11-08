@@ -1,0 +1,42 @@
+mod commands;
+mod db;
+mod error;
+
+use tauri::Manager;
+
+use db::Db;
+
+/// Nombre del archivo de la base de datos dentro de la carpeta de datos de la app
+/// (en Windows: %APPDATA%\com.chatia.app).
+const DB_FILE: &str = "chat-ia.db";
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let data_dir = app.path().app_data_dir()?;
+            std::fs::create_dir_all(&data_dir)?;
+            let db = Db::open(&data_dir.join(DB_FILE))?;
+            app.manage(db);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::app_info,
+            commands::db_status,
+            commands::conversation_create,
+            commands::conversation_list,
+            commands::conversation_get,
+            commands::conversation_search,
+            commands::conversation_rename,
+            commands::conversation_set_model,
+            commands::conversation_set_system_prompt,
+            commands::conversation_delete,
+            commands::message_list,
+            commands::setting_get,
+            commands::setting_set,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
