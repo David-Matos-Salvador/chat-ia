@@ -34,6 +34,8 @@ App de escritorio para Windows tipo Claude / ChatGPT que usa tus propias API key
 | Ctrl + N | Nuevo chat |
 | Ctrl + K | Buscar conversaciones |
 | Ctrl + , | Ajustes |
+| Ctrl + + / Ctrl + - (o Ctrl + rueda) | Agrandar / reducir el texto (80 %–150 %, se recuerda) |
+| Ctrl + 0 | Tamaño de texto normal |
 
 ## Requisitos para desarrollar
 

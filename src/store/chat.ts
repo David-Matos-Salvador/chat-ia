@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { create } from "zustand";
+import { clampFontScale, FONT_SCALE } from "../lib/format";
 import {
   api,
   DEFAULT_ANTHROPIC_MODEL,
@@ -14,6 +15,7 @@ import {
 export type Theme = "dark" | "light";
 
 const SETTING_THEME = "ui.theme";
+const SETTING_FONT_SCALE = "ui.font_scale";
 const SETTING_DEFAULT_PROVIDER = "chat.default_provider";
 const SETTING_DEFAULT_MODEL = "chat.default_model";
 
@@ -47,6 +49,8 @@ interface ChatState {
   modelErrors: Partial<Record<Provider, string>>;
   defaults: ModelChoice | null;
   theme: Theme;
+  /** Tamaño del texto (1 = 100 %). Escala toda la interfaz porque usa rem. */
+  fontScale: number;
   settingsOpen: boolean;
   promptOpen: boolean;
 
@@ -67,6 +71,7 @@ interface ChatState {
   setSystemPrompt: (prompt: string | null) => Promise<void>;
   exportTo: (path: string) => Promise<void>;
   setTheme: (theme: Theme) => Promise<void>;
+  setFontScale: (scale: number) => Promise<void>;
   setSettingsOpen: (open: boolean) => void;
   setPromptOpen: (open: boolean) => void;
   dismissError: () => void;
@@ -78,6 +83,10 @@ function message(err: unknown): string {
 
 function applyTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme;
+}
+
+function applyFontScale(scale: number) {
+  document.documentElement.style.fontSize = `${Math.round(scale * 100)}%`;
 }
 
 function configured(keys: KeyStatus[], provider: Provider): boolean {
@@ -143,20 +152,25 @@ export const useChat = create<ChatState>((set, get) => {
     modelErrors: {},
     defaults: null,
     theme: "dark",
+    fontScale: FONT_SCALE.default,
     settingsOpen: false,
     promptOpen: false,
 
     init: async () => {
       try {
-        const [theme, provider, model] = await Promise.all([
+        const [theme, provider, model, fontScale] = await Promise.all([
           api.settings.get(SETTING_THEME),
           api.settings.get(SETTING_DEFAULT_PROVIDER),
           api.settings.get(SETTING_DEFAULT_MODEL),
+          api.settings.get(SETTING_FONT_SCALE),
         ]);
         const t: Theme = theme === "light" ? "light" : "dark";
         applyTheme(t);
+        const scale = fontScale ? clampFontScale(Number(fontScale)) : FONT_SCALE.default;
+        applyFontScale(scale);
         set({
           theme: t,
+          fontScale: scale,
           defaults: provider && model ? { provider: provider as Provider, model } : null,
         });
         await Promise.all([get().refreshProviders(), get().loadConversations()]);
@@ -368,6 +382,14 @@ export const useChat = create<ChatState>((set, get) => {
       applyTheme(theme);
       set({ theme });
       await api.settings.set(SETTING_THEME, theme).catch(() => {});
+    },
+
+    setFontScale: async (value) => {
+      const scale = clampFontScale(value);
+      if (scale === get().fontScale) return;
+      applyFontScale(scale);
+      set({ fontScale: scale });
+      await api.settings.set(SETTING_FONT_SCALE, String(scale)).catch(() => {});
     },
 
     setSettingsOpen: (open) => set({ settingsOpen: open }),

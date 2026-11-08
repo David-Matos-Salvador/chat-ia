@@ -90,9 +90,9 @@ export function ChatHeader() {
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-panel/80 px-5 py-2.5 backdrop-blur">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[10rem] flex-1">
         <h1 className="truncate text-sm font-semibold text-text">{conversation?.title ?? "Nuevo chat"}</h1>
-        <p className="font-mono text-[11px] text-muted" aria-label="Uso de tokens de esta conversación">
+        <p className="truncate font-mono text-[0.6875rem] text-muted" aria-label="Uso de tokens de esta conversación">
           {usage.input + usage.output > 0
             ? `tokens · entrada ${formatTokens(usage.input)} · salida ${formatTokens(usage.output)}`
             : conversation?.systemPrompt

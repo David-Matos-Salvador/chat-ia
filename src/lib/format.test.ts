@@ -1,5 +1,42 @@
 import { describe, expect, it } from "vitest";
-import { decodeModel, encodeModel, exportFileName, formatTokens, groupByDate, totalUsage } from "./format";
+import {
+  clampFontScale,
+  decodeModel,
+  encodeModel,
+  exportFileName,
+  fontShortcut,
+  formatTokens,
+  groupByDate,
+  stepFontScale,
+  totalUsage,
+} from "./format";
+
+describe("tamaño del texto", () => {
+  it("limita entre 80 % y 150 % y redondea a pasos de 10 %", () => {
+    expect(clampFontScale(1)).toBe(1);
+    expect(clampFontScale(0.5)).toBe(0.8);
+    expect(clampFontScale(3)).toBe(1.5);
+    expect(clampFontScale(1.2000000000000002)).toBe(1.2);
+    expect(clampFontScale(Number.NaN)).toBe(1);
+  });
+
+  it("sube y baja de 10 en 10 sin pasarse de los límites", () => {
+    expect(stepFontScale(1, 1)).toBe(1.1);
+    expect(stepFontScale(1.1, 1)).toBe(1.2);
+    expect(stepFontScale(1, -1)).toBe(0.9);
+    expect(stepFontScale(1.5, 1)).toBe(1.5);
+    expect(stepFontScale(0.8, -1)).toBe(0.8);
+  });
+
+  it("reconoce las teclas en teclado español, inglés y numérico", () => {
+    expect(fontShortcut({ key: "+" })).toBe("in");
+    expect(fontShortcut({ key: "=" })).toBe("in");
+    expect(fontShortcut({ key: "Add", code: "NumpadAdd" })).toBe("in");
+    expect(fontShortcut({ key: "-" })).toBe("out");
+    expect(fontShortcut({ key: "0" })).toBe("reset");
+    expect(fontShortcut({ key: "k" })).toBeNull();
+  });
+});
 
 describe("groupByDate", () => {
   const now = new Date(2026, 10, 8, 15, 0, 0); // 8 nov 2026, 15:00

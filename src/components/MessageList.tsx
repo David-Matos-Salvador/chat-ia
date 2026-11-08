@@ -176,7 +176,7 @@ function UserBubble({ content }: { content: string }) {
 function AssistantShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex gap-3">
-      <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded border border-accent/50 font-display text-[10px] text-accent" aria-hidden="true">
+      <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded border border-accent/50 font-display text-[0.625rem] text-accent" aria-hidden="true">
         IA
       </span>
       <div className="min-w-0 flex-1 text-text">{children}</div>
@@ -283,7 +283,7 @@ function MessageItem({ message, isLastAssistant }: { message: Message; isLastAss
           >
             <IconFork /> Bifurcar
           </button>
-          <span className="ml-auto font-mono text-[11px]" title="Tokens de entrada ↑ y de salida ↓">
+          <span className="ml-auto font-mono text-[0.6875rem]" title="Tokens de entrada ↑ y de salida ↓">
             {message.model}
             {tokens ? ` · ${tokens}` : ""}
           </span>

@@ -68,6 +68,29 @@ export function decodeModel(value: string): { provider: string; model: string } 
   return { provider: value.slice(0, i), model: value.slice(i + 2) };
 }
 
+/** Tamaño del texto: 80 % a 150 %, en pasos de 10 %. */
+export const FONT_SCALE = { min: 0.8, max: 1.5, step: 0.1, default: 1 } as const;
+
+/** Limita y redondea a un paso de 10 % (evita 1.2000000000000002). */
+export function clampFontScale(value: number): number {
+  if (!Number.isFinite(value)) return FONT_SCALE.default;
+  const rounded = Math.round(value * 10) / 10;
+  return Math.min(FONT_SCALE.max, Math.max(FONT_SCALE.min, rounded));
+}
+
+/** Siguiente tamaño al pulsar Ctrl + + (dir = 1) o Ctrl + - (dir = -1). */
+export function stepFontScale(current: number, dir: 1 | -1): number {
+  return clampFontScale(current + dir * FONT_SCALE.step);
+}
+
+/** Tecla de un atajo de tamaño, o null si no lo es. Acepta el "+" del teclado español y del numérico. */
+export function fontShortcut(e: { key: string; code?: string }): "in" | "out" | "reset" | null {
+  if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") return "in";
+  if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") return "out";
+  if (e.key === "0" || e.code === "Numpad0") return "reset";
+  return null;
+}
+
 /** Nombre de archivo seguro para exportar una conversación. */
 export function exportFileName(title: string): string {
   const base = title

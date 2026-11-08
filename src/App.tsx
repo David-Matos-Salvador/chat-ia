@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useChat } from "./store/chat";
+import { FONT_SCALE, fontShortcut, stepFontScale } from "./lib/format";
 import { Sidebar, SEARCH_INPUT_ID } from "./components/Sidebar";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageList } from "./components/MessageList";
@@ -40,10 +41,35 @@ export default function App() {
     if (ready) focusById(COMPOSER_ID);
   }, [activeId, ready]);
 
+  // Tamaño del texto: Ctrl + rueda del ratón.
+  useEffect(() => {
+    let last = 0;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      // Un touchpad envía muchos eventos seguidos: como máximo un paso cada 120 ms.
+      const now = Date.now();
+      if (now - last < 120 || e.deltaY === 0) return;
+      last = now;
+      const { fontScale, setFontScale } = useChat.getState();
+      void setFontScale(stepFontScale(fontScale, e.deltaY < 0 ? 1 : -1));
+    }
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, []);
+
   // Atajos de teclado globales.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!e.ctrlKey || e.altKey) return;
+      // Tamaño del texto: Ctrl + "+", Ctrl + "-", Ctrl + 0.
+      const font = fontShortcut(e);
+      if (font) {
+        e.preventDefault();
+        const { fontScale, setFontScale } = useChat.getState();
+        void setFontScale(font === "reset" ? FONT_SCALE.default : stepFontScale(fontScale, font === "in" ? 1 : -1));
+        return;
+      }
       const key = e.key.toLowerCase();
       if (key === "n") {
         e.preventDefault();

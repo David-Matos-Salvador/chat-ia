@@ -91,7 +91,7 @@ export function Composer({ draft, setDraft }: { draft: string; setDraft: (v: str
           </button>
         )}
       </form>
-      <p className="mx-auto mt-1.5 max-w-3xl text-center text-[11px] text-muted">
+      <p className="mx-auto mt-1.5 max-w-3xl text-center text-[0.6875rem] text-muted">
         La IA puede equivocarse. Verifica la información importante.
       </p>
     </div>

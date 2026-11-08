@@ -64,7 +64,7 @@ export function Sidebar() {
         )}
         {groups.map((group) => (
           <section key={group.label} className="mt-3 first:mt-0">
-            <h3 className="px-3 pb-1 font-mono text-[11px] uppercase tracking-widest text-muted">{group.label}</h3>
+            <h3 className="px-3 pb-1 font-mono text-[0.6875rem] uppercase tracking-widest text-muted">{group.label}</h3>
             <ul>
               {group.items.map((c) => (
                 <ConversationItem key={c.id} conversation={c} />

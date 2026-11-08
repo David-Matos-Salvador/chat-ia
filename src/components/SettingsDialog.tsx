@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useChat, type Theme } from "../store/chat";
 import { api, type AppInfo } from "../lib/api";
+import { FONT_SCALE, stepFontScale } from "../lib/format";
 import { Dialog } from "./Dialog";
 import { KeysPanel } from "./KeysPanel";
 
@@ -11,7 +12,61 @@ const SHORTCUTS: [string, string][] = [
   ["Ctrl + N", "Nuevo chat"],
   ["Ctrl + K", "Buscar conversaciones"],
   ["Ctrl + ,", "Abrir Ajustes"],
+  ["Ctrl + + / Ctrl + -", "Agrandar / reducir el texto"],
+  ["Ctrl + rueda", "Agrandar / reducir el texto"],
+  ["Ctrl + 0", "Tamaño de texto normal"],
 ];
+
+/** Control de tamaño del texto: − 100 % + y Restablecer. */
+function FontSizeControl() {
+  const scale = useChat((s) => s.fontScale);
+  const setFontScale = useChat((s) => s.setFontScale);
+  const percent = Math.round(scale * 100);
+  const btn =
+    "flex h-9 w-9 items-center justify-center rounded-md border border-line text-lg text-text hover:border-accent disabled:cursor-not-allowed disabled:opacity-40";
+
+  return (
+    <div className="mt-5">
+      <p id="font-size-label" className="text-sm text-text">
+        Tamaño del texto
+      </p>
+      <div className="mt-2 flex items-center gap-2" role="group" aria-labelledby="font-size-label">
+        <button
+          type="button"
+          className={btn}
+          onClick={() => void setFontScale(stepFontScale(scale, -1))}
+          disabled={scale <= FONT_SCALE.min}
+          aria-label="Reducir texto"
+          title="Reducir (Ctrl + -)"
+        >
+          −
+        </button>
+        <output aria-live="polite" className="w-16 text-center font-mono text-sm text-text">
+          {percent} %
+        </output>
+        <button
+          type="button"
+          className={btn}
+          onClick={() => void setFontScale(stepFontScale(scale, 1))}
+          disabled={scale >= FONT_SCALE.max}
+          aria-label="Agrandar texto"
+          title="Agrandar (Ctrl + +)"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={() => void setFontScale(FONT_SCALE.default)}
+          disabled={scale === FONT_SCALE.default}
+          className="ml-2 rounded-md border border-line px-3 py-2 text-sm text-text hover:border-accent disabled:cursor-not-allowed disabled:opacity-40"
+          title="Ctrl + 0"
+        >
+          Restablecer
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function SettingsDialog() {
   const open = useChat((s) => s.settingsOpen);
@@ -58,6 +113,7 @@ export function SettingsDialog() {
             </button>
           ))}
         </div>
+        <FontSizeControl />
       </section>
 
       <KeysPanel />
