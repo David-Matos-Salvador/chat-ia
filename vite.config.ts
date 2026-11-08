@@ -9,6 +9,10 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
 
+  // En una app de escritorio el JS se carga desde el disco, no desde internet:
+  // un único archivo de ~600 KB (sobre todo el resaltado de código) no es un problema.
+  build: { chunkSizeWarningLimit: 1000 },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

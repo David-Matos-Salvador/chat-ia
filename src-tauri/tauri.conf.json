@@ -28,6 +28,20 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
+    "publisher": "Chat IA",
+    "category": "Productivity",
+    "shortDescription": "Chat de escritorio con tus propias API keys de IA",
+    "longDescription": "Chat de escritorio tipo Claude o ChatGPT que usa tus propias API keys de Anthropic, OpenAI o servicios compatibles. El historial se guarda solo en tu equipo.",
+    "copyright": "© 2026",
+    "windows": {
+      "nsis": {
+        "languages": ["Spanish"],
+        "installMode": "currentUser"
+      },
+      "wix": {
+        "language": "es-ES"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
