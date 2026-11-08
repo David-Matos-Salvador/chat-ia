@@ -40,6 +40,7 @@ pub fn run() {
             commands::conversation_set_system_prompt,
             commands::conversation_delete,
             commands::conversation_export,
+            commands::conversation_fork,
             commands::models_list,
             commands::chat_send,
             commands::chat_regenerate,

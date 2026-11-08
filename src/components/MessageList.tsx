@@ -3,7 +3,7 @@ import { useChat, useCurrentModel } from "../store/chat";
 import { formatTokens } from "../lib/format";
 import type { Message } from "../lib/api";
 import { CopyButton, Markdown } from "./Markdown";
-import { IconEdit, IconRefresh } from "./icons";
+import { IconEdit, IconFork, IconRefresh } from "./icons";
 
 const SUGGESTIONS = [
   "Explícame un concepto difícil como si tuviera 12 años",
@@ -56,7 +56,11 @@ export function MessageList({ onSuggestion }: { onSuggestion: (text: string) => 
   const empty = messages.length === 0 && !streaming && !loading;
 
   return (
-    <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
+    // min-h-0: sin esto, un hijo flex no se encoge por debajo de su contenido y una
+    // respuesta larga estira toda la ventana en lugar de desplazarse solo aquí.
+    // relative: los elementos absolutos de dentro (el aviso para lectores de pantalla)
+    // se posicionan aquí y no al final de la página, donde la harían desplazable.
+    <div ref={scrollRef} onScroll={onScroll} className="relative min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-3xl px-5 py-6" aria-busy={Boolean(streaming)}>
         {empty && <EmptyState hasKeys={hasKeys} onSuggestion={onSuggestion} onOpenSettings={() => setSettingsOpen(true)} />}
 
@@ -184,6 +188,7 @@ function MessageItem({ message, isLastAssistant }: { message: Message; isLastAss
   const streaming = useChat((s) => s.streaming !== null);
   const send = useChat((s) => s.send);
   const regenerate = useChat((s) => s.regenerate);
+  const fork = useChat((s) => s.fork);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
 
@@ -269,6 +274,15 @@ function MessageItem({ message, isLastAssistant }: { message: Message; isLastAss
               <IconRefresh /> Regenerar
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => void fork(message.id)}
+            disabled={streaming}
+            title="Crear un chat nuevo con la conversación hasta aquí"
+            className="flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs hover:bg-panel-2 hover:text-accent disabled:opacity-50"
+          >
+            <IconFork /> Bifurcar
+          </button>
           <span className="ml-auto font-mono text-[11px]" title="Tokens de entrada ↑ y de salida ↓">
             {message.model}
             {tokens ? ` · ${tokens}` : ""}

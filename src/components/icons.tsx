@@ -75,6 +75,14 @@ export const IconSliders = () => (
     <circle cx="18" cy="18" r="2" />
   </Icon>
 );
+export const IconFork = () => (
+  <Icon>
+    <circle cx="6" cy="5" r="2" />
+    <circle cx="18" cy="5" r="2" />
+    <circle cx="12" cy="19" r="2" />
+    <path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5" />
+  </Icon>
+);
 export const IconMenu = () => (
   <Icon>
     <path d="M4 7h16M4 12h16M4 17h16" />

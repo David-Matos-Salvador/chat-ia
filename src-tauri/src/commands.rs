@@ -87,6 +87,12 @@ pub fn conversation_set_model(
     db.with(|c| repo::set_conversation_model(c, &id, provider, &model))
 }
 
+/// Copia la conversación hasta `message_id` en un chat nuevo para seguir por otro camino.
+#[tauri::command]
+pub fn conversation_fork(db: State<'_, Db>, id: String, message_id: String) -> AppResult<Conversation> {
+    db.with(|c| repo::fork_conversation(c, &id, &message_id))
+}
+
 /// Guarda la conversación en Markdown en la ruta que eligió el usuario en el diálogo.
 #[tauri::command]
 pub fn conversation_export(db: State<'_, Db>, id: String, path: String) -> AppResult<()> {

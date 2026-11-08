@@ -228,6 +228,8 @@ export const api = {
       call<Conversation>("conversation_set_system_prompt", { id, systemPrompt }),
     remove: (id: string) => call<void>("conversation_delete", { id }),
     exportMarkdown: (id: string, path: string) => call<void>("conversation_export", { id, path }),
+    /** Copia la conversación hasta `messageId` (incluido) en un chat nuevo. */
+    fork: (id: string, messageId: string) => call<Conversation>("conversation_fork", { id, messageId }),
   },
 
   models: {

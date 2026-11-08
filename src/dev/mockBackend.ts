@@ -128,6 +128,16 @@ export function installMockBackend() {
         if ("systemPrompt" in a) c.systemPrompt = a.systemPrompt;
         return c;
       }
+      case "conversation_fork": {
+        const src = conversations.find((x) => x.id === a.id)!;
+        const list = messages[a.id] ?? [];
+        const end = list.findIndex((m) => m.id === a.messageId);
+        const fork = conv(`${src.title} (bifurcación)`, src.provider, src.model, new Date().toISOString());
+        fork.systemPrompt = src.systemPrompt;
+        conversations.push(fork);
+        messages[fork.id] = list.slice(0, end + 1).map((m) => ({ ...m, id: id(), conversationId: fork.id }));
+        return fork;
+      }
       case "conversation_delete": {
         const i = conversations.findIndex((x) => x.id === a.id);
         if (i >= 0) conversations.splice(i, 1);

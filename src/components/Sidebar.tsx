@@ -56,7 +56,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="mt-3 flex-1 overflow-y-auto px-2 pb-3" aria-label="Historial">
+      <nav className="mt-3 min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Historial">
         {groups.length === 0 && (
           <p className="px-3 py-6 text-center text-sm text-muted">
             {query.trim() ? "No hay conversaciones que coincidan." : "Aún no hay conversaciones."}
@@ -150,6 +150,7 @@ function ConversationItem({ conversation }: { conversation: Conversation }) {
         type="button"
         onClick={() => void select(conversation.id)}
         onDoubleClick={() => setEditing(true)}
+        title={conversation.title}
         aria-current={active ? "page" : undefined}
         className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 pr-16 text-left text-sm ${
           active ? "bg-accent/15 text-text ring-1 ring-accent/40" : "text-text/90 hover:bg-panel-2"

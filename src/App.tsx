@@ -73,9 +73,9 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       <Sidebar />
-      <main className="bg-grid flex min-w-0 flex-1 flex-col">
+      <main className="bg-grid flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <ChatHeader />
         <MessageList
           onSuggestion={(text) => {

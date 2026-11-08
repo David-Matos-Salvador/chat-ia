@@ -61,6 +61,7 @@ interface ChatState {
   send: (content: string, editFrom?: string) => Promise<void>;
   regenerate: () => Promise<void>;
   stop: () => Promise<void>;
+  fork: (messageId: string) => Promise<void>;
   rename: (id: string, title: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
   setSystemPrompt: (prompt: string | null) => Promise<void>;
@@ -305,6 +306,19 @@ export const useChat = create<ChatState>((set, get) => {
     stop: async () => {
       const s = get().streaming;
       if (s) await api.chat.stop(s.conversationId).catch(() => {});
+    },
+
+    fork: async (messageId) => {
+      const id = get().activeId;
+      if (!id || get().streaming) return;
+      try {
+        const conv = await api.conversations.fork(id, messageId);
+        set((s) => ({ conversations: upsertTop(s.conversations, conv) }));
+        await get().select(conv.id);
+        set({ notice: "Conversación bifurcada: sigue desde aquí sin cambiar la original." });
+      } catch (err) {
+        set({ error: message(err) });
+      }
     },
 
     rename: async (id, title) => {

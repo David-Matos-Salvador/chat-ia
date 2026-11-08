@@ -305,6 +305,40 @@ pub fn delete_messages_from(conn: &Connection, conversation_id: &str, message_id
     )?)
 }
 
+/// Crea una conversación nueva con una copia de los mensajes hasta `up_to_message_id`
+/// (incluido), con el mismo proveedor, modelo e instrucciones. La original no cambia.
+pub fn fork_conversation(conn: &mut Connection, conversation_id: &str, up_to_message_id: &str) -> AppResult<Conversation> {
+    let source = get_conversation(conn, conversation_id)?;
+    let messages = list_messages(conn, conversation_id)?;
+    let end = messages
+        .iter()
+        .position(|m| m.id == up_to_message_id)
+        .ok_or_else(|| AppError::NotFound("el mensaje".into()))?;
+
+    let title: String = format!("{} (bifurcación)", source.title).chars().take(MAX_TITLE_CHARS).collect();
+    let tx = conn.transaction()?;
+    let fork = create_conversation(&tx, source.provider, Some(&title), &source.model, source.system_prompt.as_deref())?;
+    for m in &messages[..=end] {
+        tx.execute(
+            "INSERT INTO messages
+                (id, conversation_id, role, content, model, input_tokens, output_tokens, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                new_id(),
+                fork.id,
+                m.role.as_str(),
+                m.content,
+                m.model,
+                m.input_tokens,
+                m.output_tokens,
+                m.created_at,
+            ],
+        )?;
+    }
+    tx.commit()?;
+    Ok(fork)
+}
+
 const AUTO_TITLE_CHARS: usize = 48;
 
 /// Título a partir del primer mensaje: primera línea, recortada en una palabra completa.
@@ -633,6 +667,38 @@ mod tests {
             assert_eq!(last_message(c, &conv.id)?.map(|m| m.id), Some(m1.id));
 
             assert_eq!(delete_messages_from(c, &conv.id, "no-existe").unwrap_err().kind(), "not_found");
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn fork_copies_messages_up_to_the_chosen_one_and_keeps_the_original() {
+        let db = db();
+        db.with(|c| {
+            let conv = create_conversation(c, Provider::Compatible, Some("Plan"), "abliterated-model", Some("Sé breve"))?;
+            add_message(c, &conv.id, Role::User, "uno", None, None)?;
+            let usage = TokenUsage { input_tokens: 5, output_tokens: 7 };
+            let a1 = add_message(c, &conv.id, Role::Assistant, "dos", Some("abliterated-model"), Some(usage))?;
+            add_message(c, &conv.id, Role::User, "tres", None, None)?;
+            add_message(c, &conv.id, Role::Assistant, "cuatro", Some("abliterated-model"), None)?;
+
+            let fork = fork_conversation(c, &conv.id, &a1.id)?;
+            assert_ne!(fork.id, conv.id);
+            assert_eq!(fork.title, "Plan (bifurcación)");
+            assert_eq!(fork.provider, Provider::Compatible);
+            assert_eq!(fork.model, "abliterated-model");
+            assert_eq!(fork.system_prompt.as_deref(), Some("Sé breve"));
+
+            let copied = list_messages(c, &fork.id)?;
+            let texts: Vec<_> = copied.iter().map(|m| m.content.as_str()).collect();
+            assert_eq!(texts, vec!["uno", "dos"]);
+            assert_eq!(copied[1].output_tokens, Some(7), "conserva el uso de tokens");
+            assert!(copied.iter().all(|m| m.id != a1.id), "los mensajes copiados tienen id nuevo");
+
+            assert_eq!(list_messages(c, &conv.id)?.len(), 4, "la original no cambia");
+            assert_eq!(list_conversations(c)?[0].id, fork.id, "la bifurcación aparece primero");
+            assert_eq!(fork_conversation(c, &conv.id, "no-existe").unwrap_err().kind(), "not_found");
             Ok(())
         })
         .unwrap();
