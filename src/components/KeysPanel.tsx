@@ -1,10 +1,11 @@
 import { useEffect, useId, useState } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask, message } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   api,
   COMPATIBLE_PRESETS,
   expectedKeyPrefix,
+  misplacedKeyHint,
   PROVIDERS,
   type CompatibleConfig,
   type KeyCheck,
@@ -111,6 +112,13 @@ function ProviderKeyRow({
   }
 
   async function save() {
+    // Una key de otro proveedor nunca funcionará aquí: no se guarda y se indica la fila correcta.
+    const misplaced = misplacedKeyHint(provider.id, value);
+    if (misplaced) {
+      await message(misplaced, { title: "Fila equivocada", kind: "warning" });
+      return;
+    }
+
     // Aviso si lo pegado no parece una key de este servicio (por ejemplo, otro valor de la consola).
     const expected = expectedKeyPrefix(provider.id, compatible?.config ?? null);
     if (expected && !value.trim().startsWith(expected.prefix)) {

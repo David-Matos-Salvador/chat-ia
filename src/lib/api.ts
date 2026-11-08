@@ -101,6 +101,21 @@ export function expectedKeyPrefix(
   return null;
 }
 
+/**
+ * Si la key pegada es claramente de otro proveedor, indica en qué fila va.
+ * Devuelve null si no se reconoce o si está en su sitio.
+ */
+export function misplacedKeyHint(provider: Provider, key: string): string | null {
+  const k = key.trim();
+  if (k.startsWith("ak_") && provider !== "compatible") {
+    return "Esta key empieza por «ak_», así que es de Abliteration AI. Pégala en la fila «Compatible con OpenAI» (pulsa antes el atajo «Abliteration AI»).";
+  }
+  if (k.startsWith("sk-ant-") && provider !== "anthropic") {
+    return "Esta key empieza por «sk-ant-», así que es de Anthropic. Pégala en la fila «Anthropic (Claude)».";
+  }
+  return null;
+}
+
 function safeHost(url: string): string {
   try {
     return new URL(url).host;
