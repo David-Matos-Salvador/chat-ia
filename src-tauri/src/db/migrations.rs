@@ -40,6 +40,11 @@ const MIGRATIONS: &[&str] = &[
         value TEXT NOT NULL
     );
     "#,
+    // v2: cada conversación recuerda con qué proveedor habla
+    r#"
+    ALTER TABLE conversations ADD COLUMN provider TEXT NOT NULL DEFAULT 'anthropic'
+        CHECK (provider IN ('anthropic', 'openai', 'compatible'));
+    "#,
 ];
 
 /// Versión del esquema que espera esta versión de la app.

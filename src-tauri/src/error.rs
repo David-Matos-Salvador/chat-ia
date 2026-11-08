@@ -21,6 +21,14 @@ pub enum AppError {
     #[error("error del Administrador de credenciales: {0}")]
     Keyring(String),
 
+    /// Error de conexión con el proveedor (sin internet, DNS, tiempo de espera…).
+    #[error("{0}")]
+    Network(String),
+
+    /// El proveedor respondió con un error HTTP.
+    #[error("{message}")]
+    Provider { status: u16, message: String },
+
     #[error("{0}")]
     Internal(String),
 }
@@ -39,6 +47,8 @@ impl AppError {
             AppError::Invalid(_) => "invalid",
             AppError::Io(_) => "io",
             AppError::Keyring(_) => "keyring",
+            AppError::Network(_) => "network",
+            AppError::Provider { .. } => "provider",
             AppError::Internal(_) => "internal",
         }
     }

@@ -4,6 +4,9 @@
 
 pub mod check;
 pub mod compatible;
+pub mod models;
+pub mod sse;
+pub mod stream;
 
 use std::time::Duration;
 
@@ -20,5 +23,8 @@ pub fn http_client() -> reqwest::Result<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent(concat!("chat-ia/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
+        // Sin tiempo total (una respuesta larga puede durar minutos), pero sí entre datos:
+        // si el servidor deja de enviar durante 2 minutos, se corta.
+        .read_timeout(Duration::from_secs(120))
         .build()
 }

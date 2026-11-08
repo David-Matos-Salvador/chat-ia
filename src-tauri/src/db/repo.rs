@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use super::models::{Conversation, Message, Role, TokenUsage};
 use crate::error::{AppError, AppResult};
+use crate::keys::Provider;
 
 pub const DEFAULT_TITLE: &str = "Nuevo chat";
 const MAX_TITLE_CHARS: usize = 200;
@@ -27,6 +28,7 @@ fn conversation_from_row(row: &Row) -> rusqlite::Result<Conversation> {
     Ok(Conversation {
         id: row.get("id")?,
         title: row.get("title")?,
+        provider: row.get("provider")?,
         model: row.get("model")?,
         system_prompt: row.get("system_prompt")?,
         created_at: row.get("created_at")?,
@@ -98,6 +100,7 @@ fn ensure_changed(rows: usize, what: &str) -> AppResult<()> {
 
 pub fn create_conversation(
     conn: &Connection,
+    provider: Provider,
     title: Option<&str>,
     model: &str,
     system_prompt: Option<&str>,
@@ -109,17 +112,19 @@ pub fn create_conversation(
     let conversation = Conversation {
         id: new_id(),
         title,
+        provider,
         model: clean_model(model)?,
         system_prompt: clean_prompt(system_prompt),
         created_at: now(),
         updated_at: now(),
     };
     conn.execute(
-        "INSERT INTO conversations (id, title, model, system_prompt, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO conversations (id, title, provider, model, system_prompt, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             conversation.id,
             conversation.title,
+            conversation.provider,
             conversation.model,
             conversation.system_prompt,
             conversation.created_at,
@@ -157,10 +162,17 @@ pub fn rename_conversation(conn: &Connection, id: &str, title: &str) -> AppResul
     get_conversation(conn, id)
 }
 
-pub fn set_conversation_model(conn: &Connection, id: &str, model: &str) -> AppResult<Conversation> {
+/// Cambia proveedor y modelo. Se puede cambiar a mitad de conversación:
+/// el historial se envía al nuevo modelo como texto.
+pub fn set_conversation_model(
+    conn: &Connection,
+    id: &str,
+    provider: Provider,
+    model: &str,
+) -> AppResult<Conversation> {
     let rows = conn.execute(
-        "UPDATE conversations SET model = ?1, updated_at = ?2 WHERE id = ?3",
-        params![clean_model(model)?, now(), id],
+        "UPDATE conversations SET provider = ?1, model = ?2, updated_at = ?3 WHERE id = ?4",
+        params![provider, clean_model(model)?, now(), id],
     )?;
     ensure_changed(rows, "la conversación")?;
     get_conversation(conn, id)
@@ -208,8 +220,6 @@ pub fn search_conversations(conn: &Connection, query: &str) -> AppResult<Vec<Con
 // ───────────────────────── Mensajes ─────────────────────────
 
 /// Añade un mensaje y mueve la conversación al principio de la lista.
-// Lo usa el envío de mensajes de la fase 5; hasta entonces solo lo usan las pruebas.
-#[allow(dead_code)]
 pub fn add_message(
     conn: &mut Connection,
     conversation_id: &str,
@@ -262,6 +272,85 @@ pub fn list_messages(conn: &Connection, conversation_id: &str) -> AppResult<Vec<
     )?;
     let rows = stmt.query_map([conversation_id], message_from_row)?;
     rows.map(|r| finish_message(r?)).collect()
+}
+
+/// Último mensaje de la conversación, si hay alguno.
+pub fn last_message(conn: &Connection, conversation_id: &str) -> AppResult<Option<Message>> {
+    let row = conn
+        .query_row(
+            "SELECT * FROM messages WHERE conversation_id = ?1 ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            [conversation_id],
+            message_from_row,
+        )
+        .optional()?;
+    row.map(finish_message).transpose()
+}
+
+/// Borra `message_id` y todos los mensajes posteriores de la conversación.
+/// Se usa al editar un mensaje (se rehace la conversación desde ahí) y al regenerar.
+pub fn delete_messages_from(conn: &Connection, conversation_id: &str, message_id: &str) -> AppResult<usize> {
+    let (created_at, rowid): (String, i64) = conn
+        .query_row(
+            "SELECT created_at, rowid FROM messages WHERE id = ?1 AND conversation_id = ?2",
+            [message_id, conversation_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::NotFound("el mensaje".into()))?;
+    Ok(conn.execute(
+        "DELETE FROM messages
+         WHERE conversation_id = ?1
+           AND (created_at > ?2 OR (created_at = ?2 AND rowid >= ?3))",
+        params![conversation_id, created_at, rowid],
+    )?)
+}
+
+const AUTO_TITLE_CHARS: usize = 48;
+
+/// Título a partir del primer mensaje: primera línea, recortada en una palabra completa.
+pub fn title_from_text(text: &str) -> String {
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    if line.chars().count() <= AUTO_TITLE_CHARS {
+        return line.to_string();
+    }
+    let cut: String = line.chars().take(AUTO_TITLE_CHARS).collect();
+    let cut = match cut.rfind(' ') {
+        Some(i) if i > AUTO_TITLE_CHARS / 2 => &cut[..i],
+        _ => cut.as_str(),
+    };
+    format!("{}…", cut.trim_end())
+}
+
+/// Si la conversación aún tiene el título por defecto, le pone uno a partir de `text`.
+pub fn auto_title(conn: &Connection, conversation_id: &str, text: &str) -> AppResult<()> {
+    let title = title_from_text(text);
+    if title.is_empty() {
+        return Ok(());
+    }
+    conn.execute(
+        "UPDATE conversations SET title = ?1 WHERE id = ?2 AND title = ?3",
+        params![title, conversation_id, DEFAULT_TITLE],
+    )?;
+    Ok(())
+}
+
+/// Conversación completa en Markdown, para exportarla.
+pub fn export_markdown(conn: &Connection, conversation_id: &str) -> AppResult<String> {
+    let conv = get_conversation(conn, conversation_id)?;
+    let mut out = format!("# {}\n\n", conv.title);
+    out.push_str(&format!("_Modelo: {} · Creada: {}_\n\n", conv.model, conv.created_at));
+    if let Some(prompt) = &conv.system_prompt {
+        out.push_str(&format!("> **Instrucciones:** {}\n\n", prompt.replace('\n', "\n> ")));
+    }
+    for m in list_messages(conn, conversation_id)? {
+        let who = match m.role {
+            Role::User => "Tú",
+            Role::Assistant => "Asistente",
+            Role::System => "Sistema",
+        };
+        out.push_str(&format!("---\n\n### {who}\n\n{}\n\n", m.content.trim_end()));
+    }
+    Ok(out)
 }
 
 // ───────────────────────── Ajustes ─────────────────────────
@@ -341,11 +430,11 @@ mod tests {
     fn create_uses_default_title_and_trims_input() {
         let db = db();
         db.with(|c| {
-            let a = create_conversation(c, None, MODEL, None)?;
+            let a = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
             assert_eq!(a.title, DEFAULT_TITLE);
             assert_eq!(a.system_prompt, None);
 
-            let b = create_conversation(c, Some("  Plan  "), &format!(" {MODEL} "), Some("   "))?;
+            let b = create_conversation(c, Provider::Anthropic, Some("  Plan  "), &format!(" {MODEL} "), Some("   "))?;
             assert_eq!(b.title, "Plan");
             assert_eq!(b.model, MODEL);
             assert_eq!(b.system_prompt, None, "un prompt vacío se guarda como NULL");
@@ -357,7 +446,7 @@ mod tests {
     #[test]
     fn create_rejects_empty_model() {
         let db = db();
-        let err = db.with(|c| create_conversation(c, None, "  ", None)).unwrap_err();
+        let err = db.with(|c| create_conversation(c, Provider::Anthropic, None, "  ", None)).unwrap_err();
         assert_eq!(err.kind(), "invalid");
     }
 
@@ -365,9 +454,9 @@ mod tests {
     fn new_message_moves_conversation_to_top() {
         let db = db();
         db.with(|c| {
-            let first = create_conversation(c, Some("Primero"), MODEL, None)?;
+            let first = create_conversation(c, Provider::Anthropic, Some("Primero"), MODEL, None)?;
             std::thread::sleep(std::time::Duration::from_millis(2));
-            let second = create_conversation(c, Some("Segundo"), MODEL, None)?;
+            let second = create_conversation(c, Provider::Anthropic, Some("Segundo"), MODEL, None)?;
 
             let ids: Vec<_> = list_conversations(c)?.into_iter().map(|x| x.id).collect();
             assert_eq!(ids, vec![second.id.clone(), first.id.clone()]);
@@ -386,7 +475,7 @@ mod tests {
     fn messages_keep_order_role_and_usage() {
         let db = db();
         db.with(|c| {
-            let conv = create_conversation(c, None, MODEL, None)?;
+            let conv = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
             add_message(c, &conv.id, Role::User, "pregunta", None, None)?;
             let usage = TokenUsage { input_tokens: 12, output_tokens: 34 };
             add_message(c, &conv.id, Role::Assistant, "respuesta", Some(MODEL), Some(usage))?;
@@ -417,7 +506,7 @@ mod tests {
     fn rename_validates_and_updates() {
         let db = db();
         db.with(|c| {
-            let conv = create_conversation(c, None, MODEL, None)?;
+            let conv = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
             let renamed = rename_conversation(c, &conv.id, "  Ideas  ")?;
             assert_eq!(renamed.title, "Ideas");
 
@@ -436,8 +525,8 @@ mod tests {
     fn model_and_system_prompt_can_change() {
         let db = db();
         db.with(|c| {
-            let conv = create_conversation(c, None, MODEL, None)?;
-            let conv2 = set_conversation_model(c, &conv.id, "gpt-modelo")?;
+            let conv = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
+            let conv2 = set_conversation_model(c, &conv.id, Provider::OpenAi, "gpt-modelo")?;
             assert_eq!(conv2.model, "gpt-modelo");
             let conv3 = set_system_prompt(c, &conv.id, Some("Responde en español"))?;
             assert_eq!(conv3.system_prompt.as_deref(), Some("Responde en español"));
@@ -452,7 +541,7 @@ mod tests {
     fn delete_cascades_to_messages() {
         let db = db();
         db.with(|c| {
-            let conv = create_conversation(c, None, MODEL, None)?;
+            let conv = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
             add_message(c, &conv.id, Role::User, "hola", None, None)?;
             add_message(c, &conv.id, Role::Assistant, "hola, ¿qué tal?", Some(MODEL), None)?;
             assert_eq!(count_rows(c)?, (1, 2));
@@ -469,11 +558,11 @@ mod tests {
     fn search_matches_title_or_content_and_escapes_wildcards() {
         let db = db();
         db.with(|c| {
-            let by_title = create_conversation(c, Some("Receta de pasta"), MODEL, None)?;
-            let by_content = create_conversation(c, Some("Varios"), MODEL, None)?;
+            let by_title = create_conversation(c, Provider::Anthropic, Some("Receta de pasta"), MODEL, None)?;
+            let by_content = create_conversation(c, Provider::Anthropic, Some("Varios"), MODEL, None)?;
             add_message(c, &by_content.id, Role::User, "Necesito una RECETA rápida", None, None)?;
-            let percent = create_conversation(c, Some("Descuento 50%"), MODEL, None)?;
-            create_conversation(c, Some("Otra cosa"), MODEL, None)?;
+            let percent = create_conversation(c, Provider::Anthropic, Some("Descuento 50%"), MODEL, None)?;
+            create_conversation(c, Provider::Anthropic, Some("Otra cosa"), MODEL, None)?;
 
             let mut found: Vec<_> = search_conversations(c, "receta")?.into_iter().map(|x| x.id).collect();
             found.sort();
@@ -513,5 +602,94 @@ mod tests {
         let json = serde_json::to_value(AppError::NotFound("la conversación".into())).unwrap();
         assert_eq!(json["kind"], "not_found");
         assert_eq!(json["message"], "no se encontró la conversación");
+    }
+
+    #[test]
+    fn provider_is_stored_and_can_change() {
+        let db = db();
+        db.with(|c| {
+            let conv = create_conversation(c, Provider::Compatible, None, "abliterated-model", None)?;
+            assert_eq!(get_conversation(c, &conv.id)?.provider, Provider::Compatible);
+            let changed = set_conversation_model(c, &conv.id, Provider::Anthropic, MODEL)?;
+            assert_eq!((changed.provider, changed.model.as_str()), (Provider::Anthropic, MODEL));
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn delete_messages_from_removes_that_message_and_later_ones() {
+        let db = db();
+        db.with(|c| {
+            let conv = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
+            let m1 = add_message(c, &conv.id, Role::User, "uno", None, None)?;
+            let m2 = add_message(c, &conv.id, Role::Assistant, "dos", Some(MODEL), None)?;
+            add_message(c, &conv.id, Role::User, "tres", None, None)?;
+            add_message(c, &conv.id, Role::Assistant, "cuatro", Some(MODEL), None)?;
+
+            assert_eq!(delete_messages_from(c, &conv.id, &m2.id)?, 3);
+            let left: Vec<_> = list_messages(c, &conv.id)?.into_iter().map(|m| m.id).collect();
+            assert_eq!(left, vec![m1.id.clone()]);
+            assert_eq!(last_message(c, &conv.id)?.map(|m| m.id), Some(m1.id));
+
+            assert_eq!(delete_messages_from(c, &conv.id, "no-existe").unwrap_err().kind(), "not_found");
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn last_message_is_none_for_empty_conversation() {
+        let db = db();
+        db.with(|c| {
+            let conv = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
+            assert_eq!(last_message(c, &conv.id)?, None);
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn title_from_text_uses_first_line_and_cuts_on_a_word() {
+        assert_eq!(title_from_text("\n  Hola, ¿qué tal?\nsegunda línea"), "Hola, ¿qué tal?");
+        let long = "Explícame cómo funciona el streaming de respuestas en una app de escritorio con Rust";
+        let title = title_from_text(long);
+        assert!(title.ends_with('…'));
+        assert!(title.chars().count() <= AUTO_TITLE_CHARS + 1);
+        assert!(!title.contains("escritorio con Rust"));
+        assert_eq!(title_from_text("   "), "");
+    }
+
+    #[test]
+    fn auto_title_only_replaces_the_default_title() {
+        let db = db();
+        db.with(|c| {
+            let fresh = create_conversation(c, Provider::Anthropic, None, MODEL, None)?;
+            auto_title(c, &fresh.id, "Receta de pan casero")?;
+            assert_eq!(get_conversation(c, &fresh.id)?.title, "Receta de pan casero");
+
+            let named = create_conversation(c, Provider::Anthropic, Some("Mi título"), MODEL, None)?;
+            auto_title(c, &named.id, "Otra cosa")?;
+            assert_eq!(get_conversation(c, &named.id)?.title, "Mi título");
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn export_markdown_includes_title_prompt_and_messages() {
+        let db = db();
+        db.with(|c| {
+            let conv = create_conversation(c, Provider::Anthropic, Some("Ideas"), MODEL, Some("Sé breve"))?;
+            add_message(c, &conv.id, Role::User, "¿Una idea?", None, None)?;
+            add_message(c, &conv.id, Role::Assistant, "Un huerto urbano.", Some(MODEL), None)?;
+            let md = export_markdown(c, &conv.id)?;
+            assert!(md.starts_with("# Ideas\n"));
+            assert!(md.contains("**Instrucciones:** Sé breve"));
+            assert!(md.contains("### Tú\n\n¿Una idea?"));
+            assert!(md.contains("### Asistente\n\nUn huerto urbano."));
+            Ok(())
+        })
+        .unwrap();
     }
 }

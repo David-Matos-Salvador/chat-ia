@@ -30,6 +30,7 @@ impl Db {
 
     /// Base de datos en memoria, para las pruebas.
     #[cfg(test)]
+    #[allow(dead_code)]
     pub fn open_in_memory() -> AppResult<Self> {
         Self::init(Connection::open_in_memory()?, ":memory:".into())
     }

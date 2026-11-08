@@ -1,3 +1,4 @@
+mod chat;
 mod commands;
 mod db;
 mod error;
@@ -24,6 +25,7 @@ pub fn run() {
             app.manage(Db::open(&data_dir.join(DB_FILE))?);
             app.manage(Keys::new(SystemKeyStore::new(KEYRING_SERVICE)));
             app.manage(providers::http_client()?);
+            app.manage(chat::Generations::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -37,6 +39,11 @@ pub fn run() {
             commands::conversation_set_model,
             commands::conversation_set_system_prompt,
             commands::conversation_delete,
+            commands::conversation_export,
+            commands::models_list,
+            commands::chat_send,
+            commands::chat_regenerate,
+            commands::chat_stop,
             commands::message_list,
             commands::setting_get,
             commands::setting_set,

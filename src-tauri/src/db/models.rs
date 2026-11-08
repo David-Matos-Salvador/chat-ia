@@ -1,12 +1,32 @@
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+use crate::keys::Provider;
+
+impl ToSql for Provider {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(self.id()))
+    }
+}
+
+impl FromSql for Provider {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value.as_str()? {
+            "anthropic" => Ok(Provider::Anthropic),
+            "openai" => Ok(Provider::OpenAi),
+            "compatible" => Ok(Provider::Compatible),
+            other => Err(FromSqlError::Other(format!("proveedor desconocido: {other}").into())),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Conversation {
     pub id: String,
     pub title: String,
+    pub provider: Provider,
     pub model: String,
     pub system_prompt: Option<String>,
     pub created_at: String,

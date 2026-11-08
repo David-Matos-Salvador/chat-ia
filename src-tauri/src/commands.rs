@@ -6,12 +6,16 @@
 use serde::Serialize;
 use tauri::State;
 
+use tauri::ipc::Channel;
+
+use crate::chat::{self, ChatOutcome, Generations, Mode, StreamEvent};
 use crate::db::models::{Conversation, DbStatus, Message};
 use crate::db::{repo, Db, SCHEMA_VERSION};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::keys::{KeyStatus, Keys, Provider};
 use crate::providers::check::{check_key, KeyCheck, Target};
 use crate::providers::compatible::{self, CompatibleConfig};
+use crate::providers::models::{self, ModelInfo};
 
 #[derive(Serialize)]
 pub struct AppInfo {
@@ -45,11 +49,12 @@ pub fn db_status(db: State<'_, Db>) -> AppResult<DbStatus> {
 #[tauri::command]
 pub fn conversation_create(
     db: State<'_, Db>,
+    provider: Provider,
     model: String,
     title: Option<String>,
     system_prompt: Option<String>,
 ) -> AppResult<Conversation> {
-    db.with(|c| repo::create_conversation(c, title.as_deref(), &model, system_prompt.as_deref()))
+    db.with(|c| repo::create_conversation(c, provider, title.as_deref(), &model, system_prompt.as_deref()))
 }
 
 #[tauri::command]
@@ -73,8 +78,21 @@ pub fn conversation_rename(db: State<'_, Db>, id: String, title: String) -> AppR
 }
 
 #[tauri::command]
-pub fn conversation_set_model(db: State<'_, Db>, id: String, model: String) -> AppResult<Conversation> {
-    db.with(|c| repo::set_conversation_model(c, &id, &model))
+pub fn conversation_set_model(
+    db: State<'_, Db>,
+    id: String,
+    provider: Provider,
+    model: String,
+) -> AppResult<Conversation> {
+    db.with(|c| repo::set_conversation_model(c, &id, provider, &model))
+}
+
+/// Guarda la conversación en Markdown en la ruta que eligió el usuario en el diálogo.
+#[tauri::command]
+pub fn conversation_export(db: State<'_, Db>, id: String, path: String) -> AppResult<()> {
+    let markdown = db.with(|c| repo::export_markdown(c, &id))?;
+    std::fs::write(&path, markdown)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -147,6 +165,70 @@ pub async fn key_test(
     };
     let secret = keys.secret(provider)?;
     Ok(check_key(&http, &target, &secret).await)
+}
+
+// ───────────────────────── Modelos y chat ─────────────────────────
+
+fn target_for(db: &Db, provider: Provider) -> AppResult<Target> {
+    Ok(match provider {
+        Provider::Anthropic => Target::Anthropic,
+        Provider::OpenAi => Target::OpenAi,
+        Provider::Compatible => Target::Compatible {
+            base_url: db.with(|c| compatible::require_base_url(c))?,
+        },
+    })
+}
+
+/// Modelos disponibles en un proveedor (se piden a su API).
+#[tauri::command]
+pub async fn models_list(
+    keys: State<'_, Keys>,
+    db: State<'_, Db>,
+    http: State<'_, reqwest::Client>,
+    provider: Provider,
+) -> AppResult<Vec<ModelInfo>> {
+    let target = target_for(&db, provider)?;
+    let key = keys.secret(provider)?;
+    models::list_models(&http, &target, &key).await
+}
+
+/// Envía un mensaje. Los trozos de la respuesta llegan por `on_event`.
+/// Con `edit_from`, el mensaje sustituye a ese mensaje y a todo lo que vino después.
+#[tauri::command]
+pub async fn chat_send(
+    db: State<'_, Db>,
+    keys: State<'_, Keys>,
+    http: State<'_, reqwest::Client>,
+    gens: State<'_, Generations>,
+    conversation_id: String,
+    content: String,
+    edit_from: Option<String>,
+    on_event: Channel<StreamEvent>,
+) -> AppResult<ChatOutcome> {
+    let mode = Mode::Send { content, edit_from };
+    chat::run(&db, &keys, &http, &gens, &conversation_id, mode, &on_event).await
+}
+
+/// Vuelve a generar la última respuesta de la conversación.
+#[tauri::command]
+pub async fn chat_regenerate(
+    db: State<'_, Db>,
+    keys: State<'_, Keys>,
+    http: State<'_, reqwest::Client>,
+    gens: State<'_, Generations>,
+    conversation_id: String,
+    on_event: Channel<StreamEvent>,
+) -> AppResult<ChatOutcome> {
+    chat::run(&db, &keys, &http, &gens, &conversation_id, Mode::Regenerate, &on_event).await
+}
+
+/// Detiene la respuesta en curso. Lo ya recibido se guarda.
+#[tauri::command]
+pub fn chat_stop(gens: State<'_, Generations>, conversation_id: String) -> AppResult<bool> {
+    if conversation_id.is_empty() {
+        return Err(AppError::Invalid("falta la conversación".into()));
+    }
+    Ok(gens.stop(&conversation_id))
 }
 
 // ───────────────────────── Proveedor compatible con OpenAI ─────────────────────────
