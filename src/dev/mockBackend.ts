@@ -96,7 +96,7 @@ export function installMockBackend() {
         return [
           { provider: "anthropic", configured: true, masked: "sk-ant…a1b2" },
           { provider: "openai", configured: false, masked: null },
-          { provider: "compatible", configured: true, masked: "ak_81V…nV1Q" },
+          { provider: "compatible", configured: true, masked: "ak_dem…1234" },
         ];
       case "compatible_config_get":
         return { name: "Abliteration AI", baseUrl: "https://api.abliteration.ai/v1" };

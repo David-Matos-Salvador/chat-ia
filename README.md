@@ -6,6 +6,27 @@ App de escritorio para Windows tipo Claude / ChatGPT que usa tus propias API key
 - **Backend:** Rust con Tauri 2
 - **Datos:** historial en SQLite local; API keys cifradas en el Administrador de credenciales de Windows
 
+![Chat IA con el tema oscuro futurista](docs/screenshots/chat-oscuro.png)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/streaming.png" alt="Respuesta llegando en streaming con el botón Detener"></td>
+    <td><img src="docs/screenshots/chat-claro.png" alt="Tema claro"></td>
+  </tr>
+  <tr>
+    <td align="center">Respuesta en streaming</td>
+    <td align="center">Tema claro</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/ajustes.png" alt="Ajustes: tema, tamaño del texto y API keys"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">Ajustes: tema, tamaño del texto y API keys</td>
+  </tr>
+</table>
+
+> Las capturas usan el backend simulado (`npm run dev`), así que las keys que se ven son de ejemplo.
+
 ## Funciones
 
 - Chat con respuestas en **streaming** (token a token) y botón **Detener**
@@ -13,6 +34,8 @@ App de escritorio para Windows tipo Claude / ChatGPT que usa tus propias API key
 - **Selector de modelo** con la lista real de cada proveedor
 - Mensajes en **Markdown** con código resaltado, tablas y botón de copiar
 - **Regenerar** la última respuesta y **editar** mensajes anteriores
+- **Bifurcar** una conversación desde cualquier respuesta para probar otro camino
+- **Tamaño del texto** ajustable (Ctrl + / Ctrl − / Ctrl + rueda)
 - **Instrucciones del sistema** por conversación
 - **Exportar** una conversación a Markdown
 - **Uso de tokens** por mensaje y total de la conversación
