@@ -127,22 +127,53 @@ fn build_request(client: &reqwest::Client, target: &Target, key: &str) -> reqwes
     builder.timeout(CHECK_TIMEOUT)
 }
 
+const MAX_DETAIL_CHARS: usize = 200;
+
+/// Extrae el texto de error que devuelven las APIs.
+/// Anthropic, OpenAI y las compatibles usan `{"error": {"message": "..."}}`.
+/// El cuerpo de error nunca incluye la key, así que se puede mostrar.
+pub fn provider_detail(body: &str) -> Option<String> {
+    let json: serde_json::Value = serde_json::from_str(body).ok()?;
+    let message = json
+        .pointer("/error/message")
+        .or_else(|| json.get("message"))
+        .and_then(|m| m.as_str())?
+        .trim();
+    if message.is_empty() {
+        return None;
+    }
+    Some(message.chars().take(MAX_DETAIL_CHARS).collect())
+}
+
 /// Hace la petición de prueba. Nunca devuelve error: cualquier fallo se describe en `KeyCheck`.
 pub async fn check_key(client: &reqwest::Client, target: &Target, key: &str) -> KeyCheck {
     let provider = target.provider();
-    match build_request(client, target, key).send().await {
-        Ok(response) => {
-            let mut check = classify(provider, response.status().as_u16());
-            // En un proveedor compatible, un 404 casi siempre es la URL base mal escrita.
-            if provider == Provider::Compatible && response.status().as_u16() == 404 {
-                check.message = "No se encontró la API en esa URL. Revisa la URL base: suele terminar en /v1 \
-                                 (por ejemplo https://api.abliteration.ai/v1)."
-                    .into();
-            }
-            check
-        }
-        Err(err) => network_failure(provider, &err),
+    let response = match build_request(client, target, key).send().await {
+        Ok(response) => response,
+        Err(err) => return network_failure(provider, &err),
+    };
+
+    let code = response.status().as_u16();
+    let mut check = classify(provider, code);
+    if check.status == CheckStatus::Valid {
+        return check;
     }
+
+    // En un proveedor compatible, un 404 casi siempre es la URL base mal escrita.
+    if provider == Provider::Compatible && code == 404 {
+        check.message = "No se encontró la API en esa URL. Revisa la URL base: suele terminar en /v1 \
+                         (por ejemplo https://api.abliteration.ai/v1)."
+            .into();
+        return check;
+    }
+
+    // Añadir el motivo exacto que da el proveedor ayuda a resolver el problema.
+    if let Ok(body) = response.text().await {
+        if let Some(detail) = provider_detail(&body) {
+            check.message = format!("{} Respuesta del servidor: «{detail}»", check.message);
+        }
+    }
+    check
 }
 
 #[cfg(test)]
@@ -204,6 +235,23 @@ mod tests {
         assert_eq!(req.url().as_str(), "https://api.abliteration.ai/v1/models");
         assert_eq!(req.headers()["authorization"], "Bearer abl-test-key");
         assert_eq!(target.provider(), Provider::Compatible);
+    }
+
+    #[test]
+    fn extracts_provider_error_detail() {
+        let abliteration = r#"{"error":{"code":"invalid_api_key","message":"API key is invalid, expired, or revoked.","type":"auth_error"}}"#;
+        assert_eq!(
+            provider_detail(abliteration).as_deref(),
+            Some("API key is invalid, expired, or revoked.")
+        );
+        let anthropic = r#"{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}"#;
+        assert_eq!(provider_detail(anthropic).as_deref(), Some("invalid x-api-key"));
+        assert_eq!(provider_detail(r#"{"message":"Unauthorized"}"#).as_deref(), Some("Unauthorized"));
+
+        assert_eq!(provider_detail("<html>502 Bad Gateway</html>"), None);
+        assert_eq!(provider_detail(r#"{"error":{"message":"   "}}"#), None);
+        let long = format!(r#"{{"error":{{"message":"{}"}}}}"#, "x".repeat(500));
+        assert_eq!(provider_detail(&long).unwrap().chars().count(), MAX_DETAIL_CHARS);
     }
 
     #[test]

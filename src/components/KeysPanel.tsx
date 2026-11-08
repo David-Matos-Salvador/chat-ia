@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   api,
   COMPATIBLE_PRESETS,
+  expectedKeyPrefix,
   PROVIDERS,
   type CompatibleConfig,
   type KeyCheck,
@@ -110,6 +111,19 @@ function ProviderKeyRow({
   }
 
   async function save() {
+    // Aviso si lo pegado no parece una key de este servicio (por ejemplo, otro valor de la consola).
+    const expected = expectedKeyPrefix(provider.id, compatible?.config ?? null);
+    if (expected && !value.trim().startsWith(expected.prefix)) {
+      const proceed = await ask(
+        `Las keys de ${expected.service} empiezan por «${expected.prefix}», pero lo que pegaste no.\n\n` +
+          `Puede que hayas copiado otro valor. En la consola del proveedor, la key completa solo se ` +
+          `muestra una vez, al crearla; si ya no la tienes, crea una nueva y cópiala en ese momento.\n\n` +
+          `¿Guardarla igualmente?`,
+        { title: "¿Es la key correcta?", kind: "warning", okLabel: "Guardar igualmente", cancelLabel: "Cancelar" },
+      );
+      if (!proceed) return;
+    }
+
     setBusy("save");
     setFeedback(null);
     try {

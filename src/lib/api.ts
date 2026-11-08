@@ -84,6 +84,31 @@ export const COMPATIBLE_PRESETS: CompatibleConfig[] = [
   { name: "Ollama (local)", baseUrl: "http://localhost:11434/v1" },
 ];
 
+/**
+ * Prefijo con el que empiezan las keys de un servicio, si se conoce.
+ * Sirve para avisar cuando se pega otra cosa por error (no para bloquear:
+ * los formatos pueden cambiar).
+ */
+export function expectedKeyPrefix(
+  provider: Provider,
+  compatible: CompatibleConfig | null,
+): { prefix: string; service: string } | null {
+  if (provider === "anthropic") return { prefix: "sk-ant-", service: "Anthropic" };
+  if (provider === "openai") return { prefix: "sk-", service: "OpenAI" };
+  const host = compatible ? safeHost(compatible.baseUrl) : "";
+  if (host === "api.abliteration.ai") return { prefix: "ak_", service: "Abliteration AI" };
+  if (host === "openrouter.ai") return { prefix: "sk-or-", service: "OpenRouter" };
+  return null;
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
+
 /** Estado de una key. Nunca incluye la key completa. */
 export interface KeyStatus {
   provider: Provider;
