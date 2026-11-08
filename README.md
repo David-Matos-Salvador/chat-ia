@@ -1,6 +1,6 @@
 # Chat IA
 
-App de escritorio para Windows tipo Claude / ChatGPT que usa tus propias API keys de Anthropic y OpenAI.
+App de escritorio para Windows tipo Claude / ChatGPT que usa tus propias API keys de Anthropic, OpenAI o cualquier servicio compatible con la API de OpenAI (Abliteration AI, OpenRouter, Ollama…).
 
 - **Interfaz:** React + TypeScript + Tailwind CSS 4 (Vite 6)
 - **Backend:** Rust con Tauri 2
@@ -60,7 +60,7 @@ chat-ia/
     ├── src/error.rs      Error común ({ kind, message })
     ├── src/db/           SQLite: migraciones, modelos y consultas (con pruebas)
     ├── src/keys.rs       API keys en el Administrador de credenciales de Windows
-    ├── src/providers/    APIs de Anthropic y OpenAI (comprobación de keys)
+    ├── src/providers/    APIs de Anthropic, OpenAI y compatibles (comprobación de keys)
     ├── capabilities/     Permisos de la ventana
     └── tauri.conf.json   Ventana, seguridad (CSP) e instalador
 ```

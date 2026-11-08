@@ -44,6 +44,8 @@ pub fn run() {
             commands::key_save,
             commands::key_delete,
             commands::key_test,
+            commands::compatible_config_get,
+            commands::compatible_config_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

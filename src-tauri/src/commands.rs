@@ -10,7 +10,8 @@ use crate::db::models::{Conversation, DbStatus, Message};
 use crate::db::{repo, Db, SCHEMA_VERSION};
 use crate::error::AppResult;
 use crate::keys::{KeyStatus, Keys, Provider};
-use crate::providers::check::{check_key, KeyCheck};
+use crate::providers::check::{check_key, KeyCheck, Target};
+use crate::providers::compatible::{self, CompatibleConfig};
 
 #[derive(Serialize)]
 pub struct AppInfo {
@@ -133,9 +134,29 @@ pub fn key_delete(keys: State<'_, Keys>, provider: Provider) -> AppResult<KeySta
 #[tauri::command]
 pub async fn key_test(
     keys: State<'_, Keys>,
+    db: State<'_, Db>,
     http: State<'_, reqwest::Client>,
     provider: Provider,
 ) -> AppResult<KeyCheck> {
+    let target = match provider {
+        Provider::Anthropic => Target::Anthropic,
+        Provider::OpenAi => Target::OpenAi,
+        Provider::Compatible => Target::Compatible {
+            base_url: db.with(|c| compatible::require_base_url(c))?,
+        },
+    };
     let secret = keys.secret(provider)?;
-    Ok(check_key(&http, provider, &secret).await)
+    Ok(check_key(&http, &target, &secret).await)
+}
+
+// ───────────────────────── Proveedor compatible con OpenAI ─────────────────────────
+
+#[tauri::command]
+pub fn compatible_config_get(db: State<'_, Db>) -> AppResult<Option<CompatibleConfig>> {
+    db.with(|c| compatible::load(c))
+}
+
+#[tauri::command]
+pub fn compatible_config_set(db: State<'_, Db>, name: String, base_url: String) -> AppResult<CompatibleConfig> {
+    db.with(|c| compatible::save(c, &name, &base_url))
 }

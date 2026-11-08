@@ -21,16 +21,21 @@ pub enum Provider {
     Anthropic,
     #[serde(rename = "openai")]
     OpenAi,
+    /// Cualquier servicio con API compatible con OpenAI (Abliteration AI, OpenRouter, Groq,
+    /// Ollama…). Su URL base se guarda en los ajustes (ver `providers::compatible`).
+    #[serde(rename = "compatible")]
+    Compatible,
 }
 
 impl Provider {
-    pub const ALL: [Provider; 2] = [Provider::Anthropic, Provider::OpenAi];
+    pub const ALL: [Provider; 3] = [Provider::Anthropic, Provider::OpenAi, Provider::Compatible];
 
     /// Identificador estable (se usa como nombre de usuario en el almacén de credenciales).
     pub fn id(self) -> &'static str {
         match self {
             Provider::Anthropic => "anthropic",
             Provider::OpenAi => "openai",
+            Provider::Compatible => "compatible",
         }
     }
 
@@ -38,6 +43,7 @@ impl Provider {
         match self {
             Provider::Anthropic => "Anthropic",
             Provider::OpenAi => "OpenAI",
+            Provider::Compatible => "el proveedor compatible",
         }
     }
 }
@@ -208,7 +214,7 @@ pub mod tests {
     #[test]
     fn starts_with_no_keys() {
         let all = keys().status_all().unwrap();
-        assert_eq!(all.len(), 2);
+        assert_eq!(all.len(), 3);
         assert!(all.iter().all(|s| !s.configured && s.masked.is_none()));
     }
 
@@ -269,6 +275,8 @@ pub mod tests {
         assert_eq!(serde_json::to_string(&Provider::Anthropic).unwrap(), "\"anthropic\"");
         let p: Provider = serde_json::from_str("\"openai\"").unwrap();
         assert_eq!(p, Provider::OpenAi);
+        let p: Provider = serde_json::from_str("\"compatible\"").unwrap();
+        assert_eq!(p, Provider::Compatible);
     }
 
     /// Prueba contra el Administrador de credenciales real.

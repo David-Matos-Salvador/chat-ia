@@ -93,23 +93,54 @@ fn network_failure(provider: Provider, err: &reqwest::Error) -> KeyCheck {
     }
 }
 
-fn build_request(client: &reqwest::Client, provider: Provider, key: &str) -> reqwest::RequestBuilder {
-    let builder = match provider {
-        Provider::Anthropic => client
+/// A quién se le pregunta. El proveedor compatible lleva su URL base.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Target {
+    Anthropic,
+    OpenAi,
+    Compatible { base_url: String },
+}
+
+impl Target {
+    pub fn provider(&self) -> Provider {
+        match self {
+            Target::Anthropic => Provider::Anthropic,
+            Target::OpenAi => Provider::OpenAi,
+            Target::Compatible { .. } => Provider::Compatible,
+        }
+    }
+}
+
+fn build_request(client: &reqwest::Client, target: &Target, key: &str) -> reqwest::RequestBuilder {
+    let builder = match target {
+        Target::Anthropic => client
             .get(format!("{ANTHROPIC_API_BASE}/v1/models?limit=1"))
             .header("x-api-key", key)
             .header("anthropic-version", ANTHROPIC_VERSION),
-        Provider::OpenAi => client
+        Target::OpenAi => client
             .get(format!("{OPENAI_API_BASE}/v1/models"))
+            .bearer_auth(key),
+        Target::Compatible { base_url } => client
+            .get(format!("{base_url}/models"))
             .bearer_auth(key),
     };
     builder.timeout(CHECK_TIMEOUT)
 }
 
 /// Hace la petición de prueba. Nunca devuelve error: cualquier fallo se describe en `KeyCheck`.
-pub async fn check_key(client: &reqwest::Client, provider: Provider, key: &str) -> KeyCheck {
-    match build_request(client, provider, key).send().await {
-        Ok(response) => classify(provider, response.status().as_u16()),
+pub async fn check_key(client: &reqwest::Client, target: &Target, key: &str) -> KeyCheck {
+    let provider = target.provider();
+    match build_request(client, target, key).send().await {
+        Ok(response) => {
+            let mut check = classify(provider, response.status().as_u16());
+            // En un proveedor compatible, un 404 casi siempre es la URL base mal escrita.
+            if provider == Provider::Compatible && response.status().as_u16() == 404 {
+                check.message = "No se encontró la API en esa URL. Revisa la URL base: suele terminar en /v1 \
+                                 (por ejemplo https://api.abliteration.ai/v1)."
+                    .into();
+            }
+            check
+        }
         Err(err) => network_failure(provider, &err),
     }
 }
@@ -146,7 +177,7 @@ mod tests {
     #[test]
     fn anthropic_request_uses_key_header_and_version() {
         let client = reqwest::Client::new();
-        let req = build_request(&client, Provider::Anthropic, "sk-ant-test").build().unwrap();
+        let req = build_request(&client, &Target::Anthropic, "sk-ant-test").build().unwrap();
         assert_eq!(req.method(), reqwest::Method::GET);
         assert_eq!(req.url().as_str(), "https://api.anthropic.com/v1/models?limit=1");
         assert_eq!(req.headers()["x-api-key"], "sk-ant-test");
@@ -157,10 +188,22 @@ mod tests {
     #[test]
     fn openai_request_uses_bearer_auth() {
         let client = reqwest::Client::new();
-        let req = build_request(&client, Provider::OpenAi, "sk-proj-test").build().unwrap();
+        let req = build_request(&client, &Target::OpenAi, "sk-proj-test").build().unwrap();
         assert_eq!(req.url().as_str(), "https://api.openai.com/v1/models");
         assert_eq!(req.headers()["authorization"], "Bearer sk-proj-test");
         assert!(req.headers().get("x-api-key").is_none());
+    }
+
+    #[test]
+    fn compatible_request_uses_configured_base_url() {
+        let client = reqwest::Client::new();
+        let target = Target::Compatible {
+            base_url: "https://api.abliteration.ai/v1".into(),
+        };
+        let req = build_request(&client, &target, "abl-test-key").build().unwrap();
+        assert_eq!(req.url().as_str(), "https://api.abliteration.ai/v1/models");
+        assert_eq!(req.headers()["authorization"], "Bearer abl-test-key");
+        assert_eq!(target.provider(), Provider::Compatible);
     }
 
     #[test]

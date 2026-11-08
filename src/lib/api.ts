@@ -40,9 +40,17 @@ export interface DbStatus {
   path: string;
 }
 
-export type Provider = "anthropic" | "openai";
+export type Provider = "anthropic" | "openai" | "compatible";
 
-export const PROVIDERS: { id: Provider; label: string; hint: string; consoleUrl: string }[] = [
+export interface ProviderInfo {
+  id: Provider;
+  label: string;
+  hint: string;
+  /** Dónde crear una key. El proveedor compatible no tiene una sola consola. */
+  consoleUrl?: string;
+}
+
+export const PROVIDERS: ProviderInfo[] = [
   {
     id: "anthropic",
     label: "Anthropic (Claude)",
@@ -55,6 +63,25 @@ export const PROVIDERS: { id: Provider; label: string; hint: string; consoleUrl:
     hint: "Empieza por sk-",
     consoleUrl: "https://platform.openai.com/api-keys",
   },
+  {
+    id: "compatible",
+    label: "Compatible con OpenAI",
+    hint: "La API key de tu proveedor",
+  },
+];
+
+/** Configuración del proveedor compatible con OpenAI. */
+export interface CompatibleConfig {
+  name: string;
+  /** Por ejemplo "https://api.abliteration.ai/v1". */
+  baseUrl: string;
+}
+
+/** Servicios conocidos que usan la API de OpenAI. */
+export const COMPATIBLE_PRESETS: CompatibleConfig[] = [
+  { name: "Abliteration AI", baseUrl: "https://api.abliteration.ai/v1" },
+  { name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1" },
+  { name: "Ollama (local)", baseUrl: "http://localhost:11434/v1" },
 ];
 
 /** Estado de una key. Nunca incluye la key completa. */
@@ -142,5 +169,10 @@ export const api = {
     save: (provider: Provider, key: string) => call<KeyStatus>("key_save", { provider, key }),
     remove: (provider: Provider) => call<KeyStatus>("key_delete", { provider }),
     test: (provider: Provider) => call<KeyCheck>("key_test", { provider }),
+  },
+
+  compatible: {
+    get: () => call<CompatibleConfig | null>("compatible_config_get"),
+    set: (name: string, baseUrl: string) => call<CompatibleConfig>("compatible_config_set", { name, baseUrl }),
   },
 };

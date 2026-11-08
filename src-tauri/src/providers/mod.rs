@@ -1,8 +1,9 @@
-//! Proveedores de IA (Anthropic y OpenAI).
+//! Proveedores de IA: Anthropic, OpenAI y cualquier API compatible con OpenAI.
 //!
 //! La fase 3 solo comprueba keys; la fase 4 añade el streaming de respuestas.
 
 pub mod check;
+pub mod compatible;
 
 use std::time::Duration;
 
