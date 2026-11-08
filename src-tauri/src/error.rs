@@ -18,8 +18,17 @@ pub enum AppError {
     #[error("error de archivo: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("error del Administrador de credenciales: {0}")]
+    Keyring(String),
+
     #[error("{0}")]
     Internal(String),
+}
+
+impl From<keyring::Error> for AppError {
+    fn from(err: keyring::Error) -> Self {
+        AppError::Keyring(err.to_string())
+    }
 }
 
 impl AppError {
@@ -29,6 +38,7 @@ impl AppError {
             AppError::NotFound(_) => "not_found",
             AppError::Invalid(_) => "invalid",
             AppError::Io(_) => "io",
+            AppError::Keyring(_) => "keyring",
             AppError::Internal(_) => "internal",
         }
     }

@@ -9,6 +9,8 @@ use tauri::State;
 use crate::db::models::{Conversation, DbStatus, Message};
 use crate::db::{repo, Db, SCHEMA_VERSION};
 use crate::error::AppResult;
+use crate::keys::{KeyStatus, Keys, Provider};
+use crate::providers::check::{check_key, KeyCheck};
 
 #[derive(Serialize)]
 pub struct AppInfo {
@@ -107,4 +109,33 @@ pub fn setting_get(db: State<'_, Db>, key: String) -> AppResult<Option<String>> 
 #[tauri::command]
 pub fn setting_set(db: State<'_, Db>, key: String, value: String) -> AppResult<()> {
     db.with(|c| repo::set_setting(c, &key, &value))
+}
+
+// ───────────────────────── API keys ─────────────────────────
+// La key completa solo entra (al guardarla); nunca sale hacia el frontend.
+
+#[tauri::command]
+pub fn key_status_all(keys: State<'_, Keys>) -> AppResult<Vec<KeyStatus>> {
+    keys.status_all()
+}
+
+#[tauri::command]
+pub fn key_save(keys: State<'_, Keys>, provider: Provider, key: String) -> AppResult<KeyStatus> {
+    keys.save(provider, &key)
+}
+
+#[tauri::command]
+pub fn key_delete(keys: State<'_, Keys>, provider: Provider) -> AppResult<KeyStatus> {
+    keys.delete(provider)
+}
+
+/// Comprueba la key guardada con una petición gratuita a la API del proveedor.
+#[tauri::command]
+pub async fn key_test(
+    keys: State<'_, Keys>,
+    http: State<'_, reqwest::Client>,
+    provider: Provider,
+) -> AppResult<KeyCheck> {
+    let secret = keys.secret(provider)?;
+    Ok(check_key(&http, provider, &secret).await)
 }

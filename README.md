@@ -33,6 +33,12 @@ Ejecutar las pruebas del backend:
 cd src-tauri && cargo test
 ```
 
+Probar también contra el Administrador de credenciales real (crea y borra una key de prueba):
+
+```bash
+cd src-tauri && cargo test -- --ignored
+```
+
 Crear el instalador de Windows (NSIS y MSI en `src-tauri/target/release/bundle/`):
 
 ```bash
@@ -53,6 +59,8 @@ chat-ia/
     ├── src/commands.rs   Comandos que llama el frontend
     ├── src/error.rs      Error común ({ kind, message })
     ├── src/db/           SQLite: migraciones, modelos y consultas (con pruebas)
+    ├── src/keys.rs       API keys en el Administrador de credenciales de Windows
+    ├── src/providers/    APIs de Anthropic y OpenAI (comprobación de keys)
     ├── capabilities/     Permisos de la ventana
     └── tauri.conf.json   Ventana, seguridad (CSP) e instalador
 ```
@@ -64,7 +72,7 @@ chat-ia/
 | 0 | Entorno (Rust, Node, C++ Build Tools) | Hecho |
 | 1 | Proyecto base, dependencias, tema y conexión React ↔ Rust | Hecho |
 | 2 | Base de datos SQLite (esquema v1, migraciones, 13 pruebas) | Hecho |
-| 3 | API keys en el Administrador de credenciales | Pendiente |
+| 3 | API keys en el Administrador de credenciales, con prueba de validez | Hecho |
 | 4 | Proveedores Claude y OpenAI con streaming | Pendiente |
 | 5 | Comandos y canal de streaming | Pendiente |
 | 6 | Interfaz completa del chat | Pendiente |

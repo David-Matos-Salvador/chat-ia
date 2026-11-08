@@ -1,10 +1,13 @@
 mod commands;
 mod db;
 mod error;
+mod keys;
+mod providers;
 
 use tauri::Manager;
 
 use db::Db;
+use keys::{Keys, SystemKeyStore, KEYRING_SERVICE};
 
 /// Nombre del archivo de la base de datos dentro de la carpeta de datos de la app
 /// (en Windows: %APPDATA%\com.chatia.app).
@@ -18,8 +21,9 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
-            let db = Db::open(&data_dir.join(DB_FILE))?;
-            app.manage(db);
+            app.manage(Db::open(&data_dir.join(DB_FILE))?);
+            app.manage(Keys::new(SystemKeyStore::new(KEYRING_SERVICE)));
+            app.manage(providers::http_client()?);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -36,6 +40,10 @@ pub fn run() {
             commands::message_list,
             commands::setting_get,
             commands::setting_set,
+            commands::key_status_all,
+            commands::key_save,
+            commands::key_delete,
+            commands::key_test,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

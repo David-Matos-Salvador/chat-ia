@@ -40,7 +40,49 @@ export interface DbStatus {
   path: string;
 }
 
-export type ApiErrorKind = "db" | "not_found" | "invalid" | "io" | "internal" | "unknown";
+export type Provider = "anthropic" | "openai";
+
+export const PROVIDERS: { id: Provider; label: string; hint: string; consoleUrl: string }[] = [
+  {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    hint: "Empieza por sk-ant-",
+    consoleUrl: "https://console.anthropic.com/settings/keys",
+  },
+  {
+    id: "openai",
+    label: "OpenAI",
+    hint: "Empieza por sk-",
+    consoleUrl: "https://platform.openai.com/api-keys",
+  },
+];
+
+/** Estado de una key. Nunca incluye la key completa. */
+export interface KeyStatus {
+  provider: Provider;
+  configured: boolean;
+  /** Por ejemplo "sk-ant…a1b2". */
+  masked: string | null;
+}
+
+export type KeyCheckStatus =
+  | "valid"
+  | "invalid"
+  | "forbidden"
+  | "billing"
+  | "rate_limited"
+  | "unavailable"
+  | "network"
+  | "unexpected";
+
+export interface KeyCheck {
+  provider: Provider;
+  ok: boolean;
+  status: KeyCheckStatus;
+  message: string;
+}
+
+export type ApiErrorKind = "db" | "not_found" | "invalid" | "io" | "keyring" | "internal" | "unknown";
 
 /** Error que devuelve el backend (`AppError` en Rust). */
 export class ApiError extends Error {
@@ -93,5 +135,12 @@ export const api = {
   settings: {
     get: (key: string) => call<string | null>("setting_get", { key }),
     set: (key: string, value: string) => call<void>("setting_set", { key, value }),
+  },
+
+  keys: {
+    statusAll: () => call<KeyStatus[]>("key_status_all"),
+    save: (provider: Provider, key: string) => call<KeyStatus>("key_save", { provider, key }),
+    remove: (provider: Provider) => call<KeyStatus>("key_delete", { provider }),
+    test: (provider: Provider) => call<KeyCheck>("key_test", { provider }),
   },
 };

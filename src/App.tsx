@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type AppInfo, type DbStatus } from "./lib/api";
+import { KeysPanel } from "./components/KeysPanel";
 
 type Status =
   | { kind: "checking" }
@@ -10,8 +11,9 @@ type Status =
 const TEST_MODEL = "claude-sonnet-5-5";
 
 /**
- * Pantalla base (fases 1 y 2).
- * Confirma que el frontend habla con el backend Rust y que la base de datos funciona.
+ * Pantalla base (fases 1 a 3).
+ * Confirma que el frontend habla con el backend Rust, que la base de datos funciona
+ * y permite gestionar las API keys.
  * La interfaz completa del chat llega en la fase 6.
  */
 export default function App() {
@@ -50,9 +52,9 @@ export default function App() {
         <StatusBadge status={status} />
       </header>
 
-      <main className="flex flex-1 items-center justify-center p-6">
-        <section className="w-full max-w-xl rounded-lg border border-line bg-panel p-8">
-          <p className="font-mono text-xs uppercase tracking-widest text-muted">Fase 2 · base de datos</p>
+      <main className="flex flex-1 justify-center overflow-y-auto p-6">
+        <section className="my-auto w-full max-w-xl rounded-lg border border-line bg-panel p-8">
+          <p className="font-mono text-xs uppercase tracking-widest text-muted">Fase 3 · API keys</p>
           <h2 className="mt-2 font-display text-2xl text-text">Sistema listo</h2>
           <p className="mt-4 text-muted">
             El backend Rust guarda las conversaciones en una base de datos SQLite local. En las próximas
@@ -88,6 +90,8 @@ export default function App() {
               No se pudo conectar con el backend: {status.message}
             </p>
           )}
+
+          {status.kind === "ok" && <KeysPanel />}
         </section>
       </main>
     </div>
