@@ -4,13 +4,14 @@
  * Cada función llama a un comando de Tauri con `invoke`. Los tipos reflejan
  * los structs de `src-tauri/src/db/models.rs`; si cambias uno, cambia el otro.
  */
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type Role = "user" | "assistant" | "system";
 
 export interface Conversation {
   id: string;
   title: string;
+  provider: Provider;
   model: string;
   systemPrompt: string | null;
   createdAt: string;
@@ -149,7 +150,39 @@ export interface KeyCheck {
   message: string;
 }
 
-export type ApiErrorKind = "db" | "not_found" | "invalid" | "io" | "keyring" | "internal" | "unknown";
+export interface ModelInfo {
+  id: string;
+  name: string;
+}
+
+/** Eventos que llegan mientras se genera la respuesta. */
+export type StreamEvent =
+  | { type: "started"; userMessage: Message | null }
+  | { type: "delta"; text: string };
+
+export interface ChatOutcome {
+  conversation: Conversation;
+  userMessage: Message | null;
+  assistantMessage: Message | null;
+  stopReason: string | null;
+  /** Aviso para mostrar bajo la respuesta (cortada, detenida, error a mitad…). */
+  notice: string | null;
+  stopped: boolean;
+}
+
+/** Modelo de Claude que se propone si no hay otro elegido. */
+export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
+
+export type ApiErrorKind =
+  | "db"
+  | "not_found"
+  | "invalid"
+  | "io"
+  | "keyring"
+  | "network"
+  | "provider"
+  | "internal"
+  | "unknown";
 
 /** Error que devuelve el backend (`AppError` en Rust). */
 export class ApiError extends Error {
@@ -183,16 +216,37 @@ export const api = {
   dbStatus: () => call<DbStatus>("db_status"),
 
   conversations: {
-    create: (model: string, title?: string, systemPrompt?: string) =>
-      call<Conversation>("conversation_create", { model, title, systemPrompt }),
+    create: (provider: Provider, model: string, title?: string, systemPrompt?: string) =>
+      call<Conversation>("conversation_create", { provider, model, title, systemPrompt }),
     list: () => call<Conversation[]>("conversation_list"),
     get: (id: string) => call<Conversation>("conversation_get", { id }),
     search: (query: string) => call<Conversation[]>("conversation_search", { query }),
     rename: (id: string, title: string) => call<Conversation>("conversation_rename", { id, title }),
-    setModel: (id: string, model: string) => call<Conversation>("conversation_set_model", { id, model }),
+    setModel: (id: string, provider: Provider, model: string) =>
+      call<Conversation>("conversation_set_model", { id, provider, model }),
     setSystemPrompt: (id: string, systemPrompt: string | null) =>
       call<Conversation>("conversation_set_system_prompt", { id, systemPrompt }),
     remove: (id: string) => call<void>("conversation_delete", { id }),
+    exportMarkdown: (id: string, path: string) => call<void>("conversation_export", { id, path }),
+  },
+
+  models: {
+    list: (provider: Provider) => call<ModelInfo[]>("models_list", { provider }),
+  },
+
+  chat: {
+    /** Envía un mensaje; `onEvent` recibe el texto a medida que llega. */
+    send: (conversationId: string, content: string, onEvent: (e: StreamEvent) => void, editFrom?: string) => {
+      const channel = new Channel<StreamEvent>();
+      channel.onmessage = onEvent;
+      return call<ChatOutcome>("chat_send", { conversationId, content, editFrom, onEvent: channel });
+    },
+    regenerate: (conversationId: string, onEvent: (e: StreamEvent) => void) => {
+      const channel = new Channel<StreamEvent>();
+      channel.onmessage = onEvent;
+      return call<ChatOutcome>("chat_regenerate", { conversationId, onEvent: channel });
+    },
+    stop: (conversationId: string) => call<boolean>("chat_stop", { conversationId }),
   },
 
   messages: {
