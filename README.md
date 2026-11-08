@@ -177,3 +177,7 @@ Pendiente para una versión futura: adjuntar imágenes (visión) y varios provee
 - Mantén el proyecto en una ruta corta (como `C:\dev\chat-ia`): Windows limita las rutas a 260 caracteres y una ruta larga rompe el enlazado de Rust (error LNK1104).
 - `keyring` está fijado en la versión 3 por estabilidad de su API.
 - Los instaladores no están firmados: Windows SmartScreen mostrará un aviso al instalar ("Más información" → "Ejecutar de todas formas").
+
+## Licencia
+
+[MIT](LICENSE) © 2026 David Matos Salvador
